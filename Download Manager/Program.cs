@@ -8,12 +8,14 @@ class Program
         ServicePointManager.Expect100Continue = true;
         ServicePointManager.SecurityProtocol = (SecurityProtocolType)3072;
 
+        //PrintAnimatedTyping("/* '##::::'##:'########:'##:::::::'##::::::::'#######::       */\r\n/*  ##:::: ##: ##.....:: ##::::::: ##:::::::'##.... ##:       */\r\n/*  ##:::: ##: ##::::::: ##::::::: ##::::::: ##:::: ##:       */\r\n/*  #########: ######::: ##::::::: ##::::::: ##:::: ##:       */\r\n/*  ##.... ##: ##...:::: ##::::::: ##::::::: ##:::: ##:       */\r\n/*  ##:::: ##: ##::::::: ##::::::: ##::::::: ##:::: ##:       */\r\n/*  ##:::: ##: ########: ########: ########:. #######::       */\r\n/* ..:::::..::........::........::........:::.......:::       */\r\n/* '########:'########::'########:'####:'##::: ##:'########:: */\r\n/*  ##.....:: ##.... ##: ##.....::. ##:: ###:: ##: ##.... ##: */\r\n/*  ##::::::: ##:::: ##: ##:::::::: ##:: ####: ##: ##:::: ##: */\r\n/*  ######::: ########:: ######:::: ##:: ## ## ##: ##:::: ##: */\r\n/*  ##...:::: ##.. ##::: ##...::::: ##:: ##. ####: ##:::: ##: */\r\n/*  ##::::::: ##::. ##:: ##:::::::: ##:: ##:. ###: ##:::: ##: */\r\n/*  ##::::::: ##:::. ##: ########:'####: ##::. ##: ########:: */\r\n/* ..::::::::..:::::..::........::....::..::::..::........::: */");
         Console.WriteLine("/* '##::::'##:'########:'##:::::::'##::::::::'#######::       */\r\n/*  ##:::: ##: ##.....:: ##::::::: ##:::::::'##.... ##:       */\r\n/*  ##:::: ##: ##::::::: ##::::::: ##::::::: ##:::: ##:       */\r\n/*  #########: ######::: ##::::::: ##::::::: ##:::: ##:       */\r\n/*  ##.... ##: ##...:::: ##::::::: ##::::::: ##:::: ##:       */\r\n/*  ##:::: ##: ##::::::: ##::::::: ##::::::: ##:::: ##:       */\r\n/*  ##:::: ##: ########: ########: ########:. #######::       */\r\n/* ..:::::..::........::........::........:::.......:::       */\r\n/* '########:'########::'########:'####:'##::: ##:'########:: */\r\n/*  ##.....:: ##.... ##: ##.....::. ##:: ###:: ##: ##.... ##: */\r\n/*  ##::::::: ##:::: ##: ##:::::::: ##:: ####: ##: ##:::: ##: */\r\n/*  ######::: ########:: ######:::: ##:: ## ## ##: ##:::: ##: */\r\n/*  ##...:::: ##.. ##::: ##...::::: ##:: ##. ####: ##:::: ##: */\r\n/*  ##::::::: ##::. ##:: ##:::::::: ##:: ##:. ###: ##:::: ##: */\r\n/*  ##::::::: ##:::. ##: ########:'####: ##::. ##: ########:: */\r\n/* ..::::::::..:::::..::........::....::..::::..::........::: */");
+
         while (true)
         {
-            Console.WriteLine("1. Sigle Download");
+            Console.WriteLine("1. Singel Download");
             Console.WriteLine("2. Listing Download");
-            Console.WriteLine("3. Exit App");
+            Console.WriteLine("3. Timming Download");
 
             string chooses = Console.ReadLine();
 
@@ -134,7 +136,85 @@ class Program
                 }
             }
 
+            if (chooses == "3")
+            {
+                Console.WriteLine("Enter links separated by spaces:");
+                string input = Console.ReadLine();
+                if (string.IsNullOrEmpty(input))
+                {
+                    Console.WriteLine("No links provided!");
+                    return;
+                }
 
+                string[] linklist = input.Trim().Split(' ').Where(l => !string.IsNullOrEmpty(l)).ToArray();
+                if (linklist.Length == 0)
+                {
+                    Console.WriteLine("No valid links entered!");
+                    return;
+                }
+
+                string downloadFolder = @"C:\Users\Markazi.co\Downloads\";
+                Directory.CreateDirectory(downloadFolder);
+
+                Console.WriteLine("Enter the date and time to start downloads (format: yyyy-MM-dd HH:mm):");
+                string dateTimeInput = Console.ReadLine();
+
+                if (!DateTime.TryParse(dateTimeInput, out DateTime scheduledTime))
+                {
+                    Console.WriteLine("Invalid date and time format! Please use yyyy-MM-dd HH:mm");
+                    return;
+                }
+
+                TimeSpan delay = scheduledTime - DateTime.Now;
+                if (delay.TotalMilliseconds <= 0)
+                {
+                    Console.WriteLine("The scheduled time must be in the future!");
+                    return;
+                }
+
+                Console.WriteLine($"Downloads scheduled to start at {scheduledTime}. Waiting...");
+
+                ManualResetEvent waitHandle = new ManualResetEvent(false);
+
+                Task.Run(async () =>
+                {
+                    await Task.Delay((int)delay.TotalMilliseconds);
+                    Console.WriteLine($"⏰ Scheduled time reached. Starting downloads at {DateTime.Now}");
+
+                    foreach (string link in linklist)
+                    {
+                        try
+                        {
+                            Uri uri = new Uri(link);
+                            string fileName = Path.GetFileName(uri.LocalPath);
+                            if (string.IsNullOrEmpty(fileName))
+                            {
+                                fileName = $"downloaded_file_{DateTime.Now.Ticks}";
+                            }
+                            string fullPath = Path.Combine(downloadFolder, fileName);
+
+                            Console.WriteLine($"📥 Starting download of {fileName} to {fullPath}...");
+
+                            using (WebClient client = new WebClient())
+                            {
+                                client.Headers.Add("User-Agent", "Mozilla/5.0");
+                                client.DownloadProgressChanged += (sender, e) => DrawProgressBar(e.ProgressPercentage);
+                                client.DownloadFileCompleted += (sender, e) => Console.WriteLine($"\n✅ Download of {fileName} completed!");
+                                await client.DownloadFileTaskAsync(uri, fullPath);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"❌ Error downloading {link}: {ex.Message}");
+                        }
+                    }
+
+                    waitHandle.Set();
+                });
+
+                Console.WriteLine("Timer set. Waiting for the scheduled time... (Press Ctrl+C to cancel)");
+                waitHandle.WaitOne();
+            }
         }
 
     }
@@ -142,20 +222,25 @@ class Program
 
     static void DrawProgressBar(int progress)
     {
-        int totalBars = 100;
-        int filledBars = (progress * totalBars) / 100;
-
-        Console.CursorLeft = 0;
+        Console.SetCursorPosition(0, Console.CursorTop);
         Console.Write("\r");
-        Console.Write(new string(' ', totalBars + 10));
-        Console.Write("\r[");
-
+  
         Console.ForegroundColor = ConsoleColor.Green;
+        Console.Write($"{progress}%"); 
 
-        Console.Write(new string('█', filledBars));
-        Console.ForegroundColor = ConsoleColor.Gray;
-
-        Console.Write(new string('-', totalBars - filledBars));
-        Console.Write($"] {progress}%");
+        Console.ResetColor();
+        Console.Out.Flush();
     }
+
+//انیمیشن نمایش asccii art
+
+    //static void PrintAnimatedTyping(string text)
+    //{
+    //    foreach (char c in text)
+    //    {
+    //        Console.Write(c);
+    //        Thread.Sleep(5); 
+    //    }
+    //    Console.WriteLine(); 
+    //}
 }
